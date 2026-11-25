@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RK-Agent · 知识库助手</title>
+<style>
+  :root {
+    font-family: system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: #19342d;
+    background: #edf0e8;
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  button, textarea { font: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 3px solid #a56b24; outline-offset: 3px; }
+  [hidden] { display: none !important; }
+  .chat {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    height: 100dvh;
+    max-width: 980px;
+    margin-inline: auto;
+    border-inline: 1px solid #d5ddd2;
+    background: #f6f7f1;
+  }
+  .header, .composer {
+    padding-inline: clamp(16px, 5vw, 44px);
+    background: #fffef9;
+  }
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding-block: 15px;
+    border-bottom: 1px solid #dce2d6;
+  }
+  .avatar {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    background: #245641;
+    color: #f8fff4;
+    font-size: 12px;
+    font-weight: 750;
+    letter-spacing: .025em;
+  }
+  .header .avatar { width: 44px; height: 44px; font-size: 15px; }
+  h1 { margin: 0; font-size: 18px; line-height: 1.25; }
+  .subtitle { margin: 3px 0 0; color: #536a5e; font-size: 13px; }
+  .feed {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    padding: clamp(20px, 5vw, 42px) clamp(14px, 5vw, 44px);
+  }
+  .welcome {
+    max-width: 530px;
+    margin: clamp(20px, 11vh, 105px) auto 0;
+  }
+  .welcome h2 { margin: 0 0 17px; font-size: clamp(22px, 4vw, 32px); letter-spacing: -.035em; }
+  .examples { display: grid; gap: 8px; }
+  .examples button {
+    width: 100%;
+    text-align: left;
+    color: inherit;
+    background: #fffef9;
+    border: 1px solid #d5ded1;
+    border-radius: 11px;
+    padding: 11px 14px;
+    line-height: 1.5;
+  }
+  .examples button:hover { background: #e9f1e5; }
+  .messages { display: grid; gap: 16px; }
+  .message { display: flex; align-items: flex-start; gap: 10px; }
+  .message.user { justify-content: flex-end; }
+  .bubble {
+    min-width: 0;
+    max-width: min(82%, 640px);
+    padding: 12px 16px;
+    border: 1px solid #dce2d6;
+    border-radius: 4px 16px 16px 16px;
+    background: #fffef9;
+  }
+  .user .bubble {
+    max-width: min(82%, 570px);
+    background: #dcebd7;
+    border-color: #cddfc8;
+    border-radius: 16px 4px 16px 16px;
+  }
+  .message-text, .source-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; }
+  .source {
+    margin-top: 12px;
+    padding: 9px 12px;
+    border-radius: 9px;
+    background: #eef3e9;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+  .source summary { cursor: pointer; font-weight: 650; }
+  .source-text { margin-top: 8px; }
+  .waiting { color: #556b5d; }
+  .waiting::after { content: "…"; }
+  .failed { color: #842c21; }
+  .retry {
+    display: block;
+    border: 1px solid #c6d4c3;
+    border-radius: 7px;
+    padding: 5px 10px;
+    background: #f2f6ee;
+    color: #28523f;
+    margin-top: 10px;
+  }
+  .composer {
+    border-top: 1px solid #dce2d6;
+    padding-top: 13px;
+    padding-bottom: max(13px, env(safe-area-inset-bottom));
+  }
+  .compose-row { display: flex; gap: 10px; align-items: end; }
+  textarea {
+    display: block;
+    flex: 1;
+    min-width: 0;
+    min-height: 48px;
+    max-height: 120px;
+    padding: 11px 13px;
+    resize: vertical;
+    background: #f5f7f0;
+    color: inherit;
+    border: 1px solid #c8d3c3;
+    border-radius: 12px;
+    line-height: 1.5;
+  }
+  .send {
+    flex: none;
+    min-height: 48px;
+    padding: 0 19px;
+    border: 0;
+    border-radius: 12px;
+    color: white;
+    background: #245641;
+    font-weight: 660;
+  }
+  .send:hover:enabled { background: #1c4433; }
+  .send:disabled, .retry:disabled { opacity: .55; cursor: default; }
+  .shortcut { margin: 7px 0 0; color: #536a5e; font-size: 12px; }
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  @media (max-width: 560px) {
+    .chat { border: 0; }
+    .header { padding-block: 12px; }
+    .welcome { margin-top: 12px; }
+    .bubble { max-width: calc(100% - 46px); padding: 10px 12px; }
+    .feed { scrollbar-gutter: auto; }
+    .shortcut { display: none; }
+  }
+</style>
+</head>
+<body>
+<main class="chat">
+  <header class="header">
+    <div class="avatar" aria-hidden="true">RK</div>
+    <div>
+      <h1>RK-Agent</h1>
+      <p class="subtitle">知识库助手</p>
+    </div>
+  </header>
+  <section class="feed" id="feed" aria-label="对话消息" tabindex="0">
+    <section class="welcome" id="welcome" aria-labelledby="welcome-title">
+      <h2 id="welcome-title">想查什么？</h2>
+      <div class="examples">
+        <button type="button">员工用餐时买一个经典蟹堡能打几折？</button>
+        <button type="button">经典套餐换双层蟹堡、薯条换沙拉，一共多少钱？</button>
+        <button type="button">周六晚上 21:50 还能下单吗？</button>
+      </div>
+    </section>
+    <div class="messages" id="messages" role="log" aria-label="聊天记录" aria-live="polite"></div>
+  </section>
+  <form class="composer" id="ask">
+    <label class="visually-hidden" for="question">输入消息</label>
+    <div class="compose-row">
+      <textarea id="question" name="question" rows="1" maxlength="2000" placeholder="输入消息…" required></textarea>
+      <button class="send" id="send" type="submit">发送</button>
+    </div>
+    <p class="shortcut">Enter 发送 · Shift + Enter 换行</p>
+  </form>
+</main>
+<script>
+  const form = document.querySelector('#ask');
+  const question = document.querySelector('#question');
+  const send = document.querySelector('#send');
+  const feed = document.querySelector('#feed');
+  const messages = document.querySelector('#messages');
+
+  for (const button of document.querySelectorAll('.examples button')) {
+    button.addEventListener('click', () => {
+      question.value = button.textContent;
+      question.focus();
+    });
+  }
+
+  question.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) {
+      event.preventDefault();
+      form.requestSubmit();
+    }
+  });
+
+  function scrollToLatest() {
+    feed.scrollTop = feed.scrollHeight;
+  }
+
+  function nearLatest() {
+    return feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80;
+  }
+
+  function renderText(element, text) {
+    const parts = text.split(/\*\*(.+?)\*\*/g);
+    element.replaceChildren(...parts.map((part, index) => {
+      if (index % 2 === 0) return document.createTextNode(part);
+      const bold = document.createElement('strong');
+      bold.textContent = part;
+      return bold;
+    }));
+  }
+
+  function addMessage(role, text) {
+    const message = document.createElement('article');
+    message.className = 'message ' + role;
+    message.setAttribute('aria-label', role === 'user' ? '你' : 'RK-Agent');
+
+    if (role === 'assistant') {
+      const avatar = document.createElement('span');
+      avatar.className = 'avatar';
+      avatar.setAttribute('aria-hidden', 'true');
+      avatar.textContent = 'RK';
+      message.append(avatar);
+    }
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    const body = document.createElement('p');
+    body.className = 'message-text';
+    body.textContent = text;
+    bubble.append(body);
+    message.append(bubble);
+    messages.append(message);
+    return { bubble, body };
+  }
+
+  function addSource(bubble, source, expanded) {
+    const details = document.createElement('details');
+    details.className = 'source';
+    details.open = Boolean(expanded);
+    const label = document.createElement('summary');
+    label.textContent = '来源 · ' + source.paper + ' · 第 ' + source.page + ' 页';
+    const excerpt = document.createElement('p');
+    excerpt.className = 'source-text';
+    renderText(excerpt, source.text);
+    details.append(label, excerpt);
+    bubble.append(details);
+  }
+
+  async function requestAnswer(text, reply) {
+    send.disabled = true;
+    reply.body.textContent = '正在查找资料';
+    reply.body.className = 'message-text waiting';
+    reply.bubble.setAttribute('aria-busy', 'true');
+    try {
+      const result = await fetch('/api/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: text }),
+      });
+      if (!result.ok) throw new Error((await result.text()).trim());
+      const data = await result.json();
+      const follow = nearLatest();
+      reply.body.className = 'message-text';
+      renderText(reply.body, data.answer);
+      if (data.source) addSource(reply.bubble, data.source, data.sourceOnly);
+      if (follow) scrollToLatest();
+    } catch (failure) {
+      const follow = nearLatest();
+      reply.body.className = 'message-text failed';
+      reply.body.textContent = failure instanceof TypeError
+        ? '无法连接问答服务。'
+        : (failure.message || '发送失败，请稍后重试。');
+      const retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'retry';
+      retry.textContent = '重试';
+      retry.addEventListener('click', () => {
+        if (send.disabled) return;
+        retry.remove();
+        requestAnswer(text, reply);
+      });
+      reply.bubble.append(retry);
+      if (follow) scrollToLatest();
+    } finally {
+      send.disabled = false;
+      reply.bubble.removeAttribute('aria-busy');
+    }
+  }
+
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    const text = question.value.trim();
+    if (!text || send.disabled) return;
+    document.querySelector('#welcome').hidden = true;
+    addMessage('user', text);
+    const reply = addMessage('assistant', '');
+    question.value = '';
+    question.focus();
+    requestAnswer(text, reply);
+    scrollToLatest();
+  });
+</script>
+</body>
+</html>
